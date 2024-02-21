@@ -1,0 +1,13 @@
+master:
+    ansible_hosts: 192.168.56.10
+nodes:
+    ansible_hosts: 192.168.56.[11:13]
+
+# [control]
+# master
+
+# [nodes]
+# node-[1:3]
+
+# [linux:children]
+# nodes

@@ -1,0 +1,72 @@
+---
+
+-
+
+  hosts: all
+  # become: true
+  # become_method: enable
+  gather_facts: false  
+  tasks:
+
+    - name: Atualiza Linux
+      apt: update_cache=yes force_apt_get=yes cache_valid_time=3600
+
+    - name: Update Snap
+      snap:
+        name: core
+
+    - name: Refresh Snap
+      ansible.builtin.shell: sudo snap refresh
+
+    - name: Instalar Microk8s
+      snap:
+        name: microk8s
+        state: present
+        classic: true
+        channel: "{{ microk8s_version }}"
+
+    - name: Adiciona usuário
+      ansible.builtin.user:
+        name: "vagrant"
+        group: "microk8s"
+
+    - name: Permissao Kube
+      file:
+        path: ./.kube
+        owner: vagrant
+        group: "microk8s"
+        state: directory
+        mode: "0755"
+      ignore_errors: true
+    
+    - name: Copy config Microk8s
+      shell: microk8s config > ./.kube/config
+      ignore_errors: true
+
+    - name: Copy join Worker
+      copy:
+        owner: vagrant
+        group: microk8s
+        src: /tmp/prefix/token.sh
+        dest: /tmp/
+        mode: "{{ item.0 }}"
+      with_together:
+        - [ "0600", "0644" ]
+      
+
+    - name: Join cluster
+      ansible.builtin.command:
+        sh "/tmp/token.sh"
+      ignore_errors: yes
+      
+    - name: Alias para kubectl
+      ansible.builtin.shell: alias kubectl=\'microk8s.kubectl\' >> ~/.bashrc
+
+    - name: microk8s status
+      ansible.builtin.shell: microk8s status
+
+    - name: Restart Microk8s
+      ansible.builtin.shell: sudo snap restart microk8s.daemon-cluster-agent
+
+
+

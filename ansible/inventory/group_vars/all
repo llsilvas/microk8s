@@ -1,0 +1,6 @@
+---
+ansible_become_user: root
+ansible_become: true
+ansible_become_pass: adminadmin
+microk8s_version: 1.29/stable
+...

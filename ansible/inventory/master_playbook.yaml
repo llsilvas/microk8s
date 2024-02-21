@@ -1,0 +1,106 @@
+---
+
+-
+
+  hosts: all
+  # # user: root 
+  # become: true
+  # # become_method: enable
+  # gather_facts: false
+  tasks:
+    - name: Atualiza Linux
+      # apt: update_cache=yes force_apt_get=yes cache_valid_time=3600
+      apt: state=latest force_apt_get=yes
+      become: true
+
+    - name: Update Snap
+      snap:
+        name: core
+      become: true
+
+    - name: Refresh Snap
+      ansible.builtin.shell: sudo snap refresh
+
+    - name: Instalar Microk8s
+      snap:
+        name: microk8s
+        state: present
+        classic: true
+        channel: "{{ microk8s_version }}"
+
+    - name: Adiciona usuário
+      user:
+        name: vagrant
+        group: "microk8s"
+
+    - name: Permissao Kube
+      file:
+        path: ./.kube
+        owner: vagrant
+        group: "microk8s"
+        state: directory
+        mode: "0755"
+      ignore_errors: true
+
+    - name: Copy config Microk8s
+      shell: microk8s config > ./.kube/config
+      ignore_errors: true
+
+    - name: Enable tools Microk8s
+      ansible.builtin.shell: microk8s enable ha-cluster 
+      ignore_errors: true
+    - name: Enable tools Microk8s
+      ansible.builtin.shell: microk8s enable dashboard 
+      ignore_errors: true
+    - name: Enable tools Microk8s
+      ansible.builtin.shell: microk8s enable helm 
+      ignore_errors: true
+    - name: Enable tools Microk8s
+      ansible.builtin.shell: microk8s enable dns 
+      ignore_errors: true
+
+    - name: Create join key
+      shell: microk8s add-node
+      register: join_cluster
+      ignore_errors: true
+      become: true
+
+    - debug:
+        msg: "{{ join_cluster.stdout_lines[8] }}"
+
+    - name: Copy join key to tmp
+      copy:
+        content: "{{ join_cluster.stdout_lines[8] }}"
+        dest: /tmp/token.sh
+        owner: vagrant
+        group: microk8s
+        mode: "{{ item.0 }}"
+        remote_src: yes
+        force: true
+      with_together:
+        - [ "0600", "0644" ]
+
+    - name: Specifying a destination path
+      fetch:
+        owner: vagrant
+        group: microk8s
+        src: /tmp/token.sh
+        dest: /tmp/prefix/
+        flat: yes
+
+    - name: Alias para kubectl
+      ansible.builtin.shell: alias kubectl=\'microk8s.kubectl\' >> ~/.bashrc
+
+    - name: Token Kube Dashboard
+      ansible.builtin.shell: kubectl -n kube-system get secret |grep  kubernetes-dashboard-token |cut -f1 -d ' ' | kubectl -n kube-system describe  secret > $HOME/token
+      ignore_errors: yes
+
+    - name: Verifica Namespace
+      ansible.builtin.shell: kubectl get --all-namespaces pods
+      ignore_errors: yes  
+
+    - name: Restart Microk8s
+      ansible.builtin.shell: sudo snap restart microk8s.daemon-cluster-agent
+
+
+
